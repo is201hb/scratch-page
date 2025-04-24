@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Zoo Animal Guessing Game</title>
+  <div>
+    <a href="scratch.html">Scratch Page</a>
+  </div>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f0f8ff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .game-container {
+      background: white;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+      width: 360px;
+      text-align: center;
+      position: relative;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .clue {
+      margin: 1rem 0;
+      font-weight: bold;
+    }
+
+    input[type="text"], select {
+      padding: 0.5rem;
+      width: 80%;
+      margin-bottom: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 0.5rem;
+    }
+
+    button {
+      padding: 0.5rem 1rem;
+      border: none;
+      background-color: #4caf50;
+      color: white;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      margin: 0.25rem;
+    }
+
+    #hintBtn {
+      display: none;
+      background-color: #ffa500;
+    }
+
+    .result {
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+
+    .correct {
+      color: green;
+    }
+
+    .wrong {
+      color: red;
+    }
+
+    .emoji {
+      font-size: 2rem;
+      margin-top: 0.5rem;
+    }
+
+    #funFact {
+      margin-top: 1rem;
+      font-style: italic;
+      color: #555;
+    }
+
+    .big-emoji {
+      font-size: 5rem;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 0;
+      transition: opacity 0.5s, transform 0.5s;
+      pointer-events: none;
+    }
+
+    .big-emoji.show {
+      opacity: 1;
+      animation: zoom 1.5s ease-out;
+    }
+
+    @keyframes zoom {
+      0% {
+        transform: translate(-50%, -50%) scale(0.1);
+        opacity: 0;
+      }
+      50% {
+        transform: translate(-50%, -50%) scale(1.5);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0;
+      }
+    }
+
+    #stamps {
+      margin-top: 1rem;
+      font-size: 2rem;
+    }
+
+    #winMessage {
+      font-weight: bold;
+      margin-top: 1rem;
+      color: #007700;
+    }
+
+    canvas.fireworks {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+  <canvas class="fireworks"></canvas>
+  <div class="game-container">
+    <h1>Zoo Animal Guessing Game</h1>
+
+    <div id="scoreboard">Correct: 0 | Wrong: 0 | Total: 0</div>
+    <div id="timer">⏱ Time left: 10s</div>
+
+    <label for="difficulty">Choose Difficulty:</label><br>
+    <select id="difficulty">
+      <option value="easy">Easy</option>
+      <option value="medium">Medium</option>
+      <option value="hard">Hard</option>
+    </select><br>
+
+    <button onclick="showInstructions()">Start Game</button>
+
+    <div class="clue" id="clue">Choose a difficulty and press start!</div>
+
+    <input type="text" id="guessInput" placeholder="Your guess here" /><br>
+    <button onclick="checkGuess()">Submit</button>
+    <button id="hintBtn" onclick="showHint()">Hint</button>
+
+    <div class="result" id="result"></div>
+    <div class="emoji" id="emoji"></div>
+    <div id="funFact"></div>
+
+    <div id="bigEmoji" class="big-emoji">🎉</div>
+    <div id="winMessage"></div>
+    <div id="stamps">🏅 Stamps: <span id="stampList"></span></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fireworks-js@2.9.1/dist/index.umd.min.js"></script>
+  <script>
+    const animals = [
+      { name: 'elephant', clue: 'I have a long trunk and big ears.', difficulty: 'easy', hint: 'I’m the largest land animal.', emoji: '🐘', fact: 'Elephants can recognize themselves in mirrors!' },
+      { name: 'giraffe', clue: 'I have a long neck and eat from tall trees.', difficulty: 'easy', hint: 'I’m the tallest animal.', emoji: '🦒', fact: 'Giraffes only need 5 to 30 minutes of sleep per day!' },
+      { name: 'lion', clue: 'I am the king of the jungle.', difficulty: 'easy', hint: 'I have a loud roar and a mane.', emoji: '🦁', fact: 'A lion’s roar can be heard up to 5 miles away!' },
+      // Add more animals here as needed
+    ];
+
+    let currentAnimal = {};
+    let filteredAnimals = [];
+    let wrongGuesses = 0;
+    let score = { correct: 0, wrong: 0, total: 0 };
+    let timer;
+    let timeLeft = 10;
+    let stamps = [];
+    const fireworks = new Fireworks.default(document.querySelector(".fireworks"), { autoresize: true });
+
+    function showInstructions() {
+      alert("Welcome to the Zoo Animal Guessing Game!\n\nYour goal is to correctly guess 10 animals based on clues.\nYou'll have 10 seconds per question.\nIf you get 10 correct, you WIN an animal stamp!\n\nClick OK to start!");
+      startGame();
+    }
+
+    function updateScoreboard() {
+      document.getElementById('scoreboard').textContent =
+        `Correct: ${score.correct} | Wrong: ${score.wrong} | Total: ${score.total}`;
+    }
+
+    function updateTimerDisplay() {
+      document.getElementById('timer').textContent = `⏱ Time left: ${timeLeft}s`;
+    }
+
+    function startTimer() {
+      clearInterval(timer);
+      timeLeft = 10;
+      updateTimerDisplay();
+      timer = setInterval(() => {
+        timeLeft--;
+        updateTimerDisplay();
+        if (timeLeft <= 0) {
+          clearInterval(timer);
+          failTimeOut();
+        }
+      }, 1000);
+    }
+
+    function failTimeOut() {
+      document.getElementById('result').innerHTML = `⏰ Time's up! It was <b>${currentAnimal.name}</b>`;
+      document.getElementById('emoji').textContent = currentAnimal.emoji || '';
+      document.getElementById('funFact').textContent = '';
+      score.wrong++;
+      updateScoreboard();
+      setTimeout(newRound, 3000);
+    }
+
+    function startGame() {
+      const difficulty = document.getElementById('difficulty').value;
+      filteredAnimals = animals.filter(a => a.difficulty === difficulty);
+      stamps = [];
+      score = { correct: 0, wrong: 0, total: 0 };
+      document.getElementById('stampList').textContent = '';
+      document.getElementById('winMessage').textContent = '';
+      newRound();
+    }
+
+    function newRound() {
+      document.getElementById('hintBtn').style.display = 'none';
+      document.getElementById('emoji').textContent = '';
+      document.getElementById('bigEmoji').classList.remove('show');
+      document.getElementById('guessInput').value = '';
+      document.getElementById('result').textContent = '';
+      document.getElementById('funFact').textContent = '';
+
+      wrongGuesses = 0;
+      currentAnimal = filteredAnimals[Math.floor(Math.random() * filteredAnimals.length)];
+      document.getElementById('clue').textContent = currentAnimal.clue;
+      score.total++;
+      updateScoreboard();
+      startTimer();
+    }
+
+    function checkGuess() {
+      const guess = document.getElementById('guessInput').value.toLowerCase().trim();
+      const resultEl = document.getElementById('result');
+
+      if (guess === currentAnimal.name) {
+        clearInterval(timer);
+        resultEl.textContent = 'Correct!';
+        resultEl.className = 'result correct';
+        document.getElementById('emoji').textContent = currentAnimal.emoji;
+        document.getElementById('funFact').textContent = 'Fun Fact: ' + (currentAnimal.fact || '');
+        score.correct++;
+        updateScoreboard();
+        showBigEmoji(currentAnimal.emoji || '🎉');
+
+        if (score.correct >= 10) {
+          stamps.push(currentAnimal.emoji || '🏅');
+          document.getElementById('stampList').textContent = stamps.join(' ');
+          document.getElementById('winMessage').textContent = '🎉 You WON! Play again to earn more stamps!';
+          fireworks.start();
+          setTimeout(() => fireworks.stop(), 5000);
+        }
+
+        setTimeout(() => {
+          if (score.correct < 10) {
+            newRound();
+          }
+        }, 3000);
+      } else {
+        wrongGuesses++;
+        resultEl.textContent = `Wrong guess #${wrongGuesses}`;
+        resultEl.className = 'result wrong';
+
+        if (wrongGuesses === 2) {
+          document.getElementById('hintBtn').style.display = 'inline-block';
+        }
+
+        if (wrongGuesses >= 3) {
+          clearInterval(timer);
+          resultEl.innerHTML = `Too many tries! It was <b>${currentAnimal.name}</b>`;
+          document.getElementById('emoji').textContent = currentAnimal.emoji || '';
+          document.getElementById('funFact').textContent = '';
+          score.wrong++;
+          updateScoreboard();
+          setTimeout(newRound, 3000);
+        }
+      }
+    }
+
+    function showHint() {
+      alert("Hint: " + currentAnimal.hint);
+    }
+
+    function showBigEmoji(emoji) {
+      const bigEmoji = document.getElementById('bigEmoji');
+      bigEmoji.textContent = emoji;
+      bigEmoji.classList.add('show');
+      setTimeout(() => bigEmoji.classList.remove('show'), 2000);
+    }
+  </script>
+</body>
+</html>
+
+
